@@ -1,3 +1,7 @@
 /.deps
-/bin
+/bin/debug
+/bin/release
+/bin/small
+/bin/fast
+/bin/fastest
 /obj
