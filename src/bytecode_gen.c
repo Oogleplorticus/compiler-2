@@ -1,6 +1,7 @@
 #include "bytecode_gen.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,12 +31,12 @@ static struct ByteArray functionTable = {NULL, 0};
 static struct ByteArray staticVariables = {NULL, 0};
 static struct ByteArray programLogic = {NULL, 0};
 
-static size_t functionCount = 0;
+static uint32_t functionCount = 0;
 
-static size_t nextStaticID = (size_t)-1;
+static uint32_t nextStaticID = (uint32_t)-1;
 
-static size_t currentFunctionIndex = 0;
-static size_t currentBlockIndex = 0;
+static uint32_t currentFunctionIndex = 0;
+static uint32_t currentBlockIndex = 0;
 
 
 
@@ -64,7 +65,7 @@ void appendToFunctionTableDirect(const char* identifier, size_t ID) {
 	++functionCount;
 }
 
-void appendToFunctionTable(struct Token identifier, size_t ID) {
+void appendToFunctionTable(struct Token identifier, uint32_t ID) {
 	//create new function
 	size_t newFunctionLength = identifier.length + 12; //8 bytes for identifier length, 4 for ID
 	struct ByteArray newFunction = allocByteArray(newFunctionLength);
@@ -89,7 +90,7 @@ void appendToFunctionTable(struct Token identifier, size_t ID) {
 
 //this should technically return a u32, but this is C so im just going to truncate
 //also DISGUSTING code here
-size_t findInFunctionTable(struct Token identifier) {
+uint32_t findInFunctionTable(struct Token identifier) {
 	const size_t maxIndex = functionTable.length - identifier.length;
 	if (maxIndex > functionTable.length) {
 		return -1;
@@ -111,7 +112,7 @@ size_t findInFunctionTable(struct Token identifier) {
 				}			
 			}
 			if (match) {
-				size_t functionID;
+				uint32_t functionID;
 				memcpy(&functionID, functionTable.ptr + searchIndex - 12, 4); //memory unsafe
 				return functionID;
 			} else {
@@ -127,18 +128,18 @@ size_t findInFunctionTable(struct Token identifier) {
 	return -1;
 }
 
-size_t createStaticData(enum IRType type, size_t sizePower, size_t count, char* data) {
-	if (sizePower < 3) {
+uint32_t createStaticData(enum IRType type, uint8_t sizeExp, uint64_t count, char* data) {
+	if (sizeExp < 3) {
 		fprintf(stderr, "ERROR: Size powers less than 3 currently not supported\n");
 		exit(1);
 	}
 
-	size_t typeSize = 1 << (sizePower - 3);
+	size_t typeSize = 1 << (sizeExp - 3);
 	struct ByteArray staticData = allocByteArray(14 + (typeSize * count));
 	memcpy(staticData.ptr, &nextStaticID, 4);
 	--nextStaticID;
 	memcpy(staticData.ptr + 4, &type, 1);
-	memcpy(staticData.ptr + 5, &sizePower, 1);
+	memcpy(staticData.ptr + 5, &sizeExp, 1);
 	memcpy(staticData.ptr + 6, &count, 8);
 	memcpy(staticData.ptr + 14, data, typeSize * count);
 
@@ -151,8 +152,8 @@ size_t createStaticData(enum IRType type, size_t sizePower, size_t count, char* 
 	return nextStaticID + 1;
 }
 
-void insertTypeIdentifier(enum IRType type, size_t sizePower, bool isStatic) {
-	if (sizePower < 3) {
+void insertTypeIdentifier(enum IRType type, uint8_t sizeExp, bool isStatic) {
+	if (sizeExp < 3) {
 		fprintf(stderr, "ERROR: Size powers less than 3 currently not supported\n");
 		exit(1);
 	}
@@ -164,7 +165,7 @@ void insertTypeIdentifier(enum IRType type, size_t sizePower, bool isStatic) {
 
 	struct ByteArray identifier = allocByteArray(2);
 	memcpy(identifier.ptr, &type, 1);
-	memcpy(identifier.ptr + 1, &sizePower, 1);
+	memcpy(identifier.ptr + 1, &sizeExp, 1);
 	
 	struct ByteArray newLogic = combineByteArrays(*insertInto, identifier);
 	freeByteArray(insertInto);
@@ -173,37 +174,33 @@ void insertTypeIdentifier(enum IRType type, size_t sizePower, bool isStatic) {
 	*insertInto = newLogic;
 }
 
-void insertID32(size_t ID) {
-	struct ByteArray id = allocByteArray(4);
-	memcpy(id.ptr, &ID, 4);
+void insertValue(uint64_t value, size_t bytes) {
+	struct ByteArray valBytes = allocByteArray(bytes);
+	memcpy(valBytes.ptr, &value, bytes);
 
-	struct ByteArray newLogic = combineByteArrays(programLogic, id);
+	struct ByteArray newLogic = combineByteArrays(programLogic, valBytes);
 	freeByteArray(&programLogic);
-	freeByteArray(&id);
+	freeByteArray(&valBytes);
 
 	programLogic = newLogic;
 }
 
-void insertConstant(enum IRType type, size_t sizePower, size_t value) {
-	size_t typeSize = 1 << (sizePower - 3);
+void insertConstant(enum IRType type, uint8_t sizeExp, uint64_t value) {
+	size_t typeSize = 1 << (sizeExp - 3);
 
 	size_t constantSize = 6 + typeSize;
 	//check if size type
-	bool isSizeType = sizePower == (size_t)-1;
+	bool isSizeType = sizeExp == (uint8_t)-1;
 	if (isSizeType) {
-		typeSize = sizeof(size_t);
+		typeSize = sizeof(uint64_t);
 		constantSize = 7 + typeSize;
 	}
 
 	struct ByteArray constant = allocByteArray(constantSize);
 	memcpy(constant.ptr + 4, &type, 1);
-	memcpy(constant.ptr + 5, &sizePower, 1);
+	memcpy(constant.ptr + 5, &sizeExp, 1);
 	if (isSizeType) {
-		//find what power of two the size_t is
-		size_t sizeTSize = sizeof(size_t);
-		size_t dataSizePower = 0;
-		while (sizeTSize >>= 1) ++dataSizePower;
-		dataSizePower += 3;
+		const uint8_t dataSizePower = 6; //when size type, the data inserted will be 64 bits for now (2^6 = 64)
 		memcpy(constant.ptr + 6, &dataSizePower, 1);
 		memcpy(constant.ptr + 7, &value, typeSize);
 	} else {
@@ -217,7 +214,7 @@ void insertConstant(enum IRType type, size_t sizePower, size_t value) {
 	programLogic = newLogic;
 }
 
-void initialiseFunctionDefinition(size_t ID) {
+void initialiseFunctionDefinition(uint32_t ID) {
 	struct ByteArray functionStart = allocByteArray(16);
 	memcpy(functionStart.ptr, &ID, 4); //a bit unsafe
 
@@ -231,13 +228,13 @@ void initialiseFunctionDefinition(size_t ID) {
 }
 
 //to be used immediately after type identifiers insertion
-void finaliseFunctionDefinition(size_t blockCount, size_t outCount, size_t inCount) {
-	memcpy(programLogic.ptr + currentFunctionIndex + 4, &blockCount, 4); //a bit unsafe
-	memcpy(programLogic.ptr + currentFunctionIndex + 8, &outCount, 4);
-	memcpy(programLogic.ptr + currentFunctionIndex + 12, &inCount, 4);
+void finaliseFunctionDefinition(uint64_t blockCount, uint32_t inCount, uint32_t outCount) {
+	memcpy(programLogic.ptr + currentFunctionIndex + 4, &blockCount, 8); //a bit unsafe
+	memcpy(programLogic.ptr + currentFunctionIndex + 12, &outCount, 4);
+	memcpy(programLogic.ptr + currentFunctionIndex + 16, &inCount, 4);
 }
 
-void initialiseBlockDefinition(size_t argumentCount) {
+void initialiseBlockDefinition(uint32_t argumentCount) {
 	struct ByteArray blockStart = allocByteArray(12);
 	memcpy(blockStart.ptr + 8, &argumentCount, 4); //a bit unsafe
 
@@ -250,7 +247,7 @@ void initialiseBlockDefinition(size_t argumentCount) {
 	programLogic = newLogic;
 }
 
-void finaliseBlockDefinition(size_t instructionCount) {
+void finaliseBlockDefinition(uint64_t instructionCount) {
 	memcpy(programLogic.ptr + currentBlockIndex, &instructionCount, 8); //a bit unsafe
 }
 
@@ -267,13 +264,14 @@ void resetBytecodeGen(FILE* filePtr) {
 	//reset variables
 	functionCount = 0;
 
-	nextStaticID = (size_t)-1;
+	nextStaticID = (uint32_t)-1;
 
 	currentFunctionIndex = 0;
 	currentBlockIndex = 0;
 
 	//set specification defined functions
-	appendToFunctionTableDirect("print", (size_t)-256);
+	//TODO proper system later
+	appendToFunctionTableDirect("print", (uint32_t)-256);
 }
 
 struct ByteArray finaliseBytecode() {
@@ -296,8 +294,6 @@ struct ByteArray finaliseBytecode() {
 	size_t staticCount = (nextStaticID * -1) - 1;
 	memcpy(staticVariables.ptr, &staticCount, 4);
 
-
-	
 	//combine
 	struct ByteArray temp0 = combineByteArrays(staticHeaderCopy, functionTable);
 	struct ByteArray temp1 = combineByteArrays(staticVariables, programLogic);

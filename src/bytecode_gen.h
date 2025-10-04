@@ -1,9 +1,11 @@
 #pragma once
 
+#include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 
+#include "operation.h"
 #include "token.h"
 
 enum IRType {
@@ -21,24 +23,24 @@ enum IRType {
 	IR_POINTER_VOID = 0,
 };
 
-void appendToFunctionTable(struct Token identifier, size_t ID);
+void appendToFunctionTable(struct Token identifier, uint32_t ID);
 //returns -1 if not in table
-size_t findInFunctionTable(struct Token identifier);
+uint32_t findInFunctionTable(struct Token identifier);
 
 //type is of the pointee, returns the variable ID of the pointer to it, IT IS NOT THE ID OF THE DATA ITSELF
-size_t createStaticData(enum IRType type, size_t sizePower, size_t count, char* data);
+uint32_t createStaticData(enum IRType type, uint8_t sizeExp, uint64_t count, char* data);
 
-//the size is 2^sizePower, isStatic is true when inserting into static data, false when inserting into program logic
-void insertTypeIdentifier(enum IRType type, size_t sizePower, bool isStatic);
+//the size is 2^sizeExp, isStatic is true when inserting into static data, false when inserting into program logic
+void insertTypeIdentifier(enum IRType type, uint8_t sizeExp, bool isStatic);
 
-void insertID32(size_t ID);
-void insertConstant(enum IRType type, size_t sizePower, size_t value);
+void insertValue(uint64_t value, size_t bytes);
+void insertConstant(enum IRType type, uint8_t sizeExp, uint64_t value);
 
-void initialiseFunctionDefinition(size_t ID);
-void finaliseFunctionDefinition(size_t blockCount, size_t inCount, size_t outCount);
+void initialiseFunctionDefinition(uint32_t ID);
+void finaliseFunctionDefinition(uint64_t blockCount, uint32_t inCount, uint32_t outCount);
 
-void initialiseBlockDefinition(size_t argumentCount);
-void finaliseBlockDefinition(size_t instructionCount);
+void initialiseBlockDefinition(uint32_t argumentCount);
+void finaliseBlockDefinition(uint64_t instructionCount);
 
 //MUST be called before using other functions
 void resetBytecodeGen(FILE* filePtr);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdio.h>
 
 #include "token.h"
@@ -10,3 +11,5 @@ void resetTokeniser(FILE* filePtr);
 void incrementToken();
 struct Token currentToken();
 struct Token nextToken();
+
+void setTokeniserIndex(size_t index);

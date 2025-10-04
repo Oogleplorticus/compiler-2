@@ -69,9 +69,11 @@ Instruction IDs are `u32`s. Despite being unsigned, the specification defined in
 
 ## Instruction descriptions
 
+Remember directives have the same format as instructions
+
 |ID|Name|Description|
 |-|-|-|
-|-1|Declare variable|Declares a variable of a specific type|
+|-1|Declare|Declares a variable of a specific type|
 |-2|Move|Copies data into a variable from a constant or variable|
 |-3|Load|Loads the data at a pointer to a variable|
 |-4|Store|Stores the data in a variable to a pointer|
@@ -88,7 +90,10 @@ Instruction IDs are `u32`s. Despite being unsigned, the specification defined in
 
 |ID|Name|Parameters (in order)|
 |-|-|-|
-|-256|Print|source:`ptr<u8>` length:`usize`
+|-1|Declare|type:`i8`, typeExp`u8`, ID:`u32`|
+|-2|Move|destinationID:`u32`, sourceID:`u32`|
+|||
+|-256|Print|source:`ptr<u8>`, length:`usize`
 
 # Bytecode Format
 
@@ -163,7 +168,7 @@ Each static variable entry starts with its variable ID (`u32`) and type (one `i8
 
 ### Functions
 
-Function definitions start with the function ID (`u32`) and block count (`u32`). After that, two `u32`s, representing the output then input count respectively. Then finally the types of said outputs and inputs in order.
+Function definitions start with the function ID (`u32`) and block count (`u64`). After that, two `u32`s, representing the output then input count respectively. Then finally the types of said outputs and inputs in order.
 
 ### Blocks
 

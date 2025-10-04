@@ -21,7 +21,13 @@ enum TokenType charToSymbolTokenType(char c) {
 
 		case ',': return TOKEN_SYMBOL_COMMA;
 
+		case '=': return TOKEN_SYMBOL_EQUAL;
+
+		case '+': return TOKEN_SYMBOL_PLUS;
+		case '-': return TOKEN_SYMBOL_MINUS;
+		case '*': return TOKEN_SYMBOL_STAR;
 		case '/': return TOKEN_SYMBOL_SLASH_FORWARD;
+
 		case '\\': return TOKEN_SYMBOL_SLASH_BACKWARD;
 
 		default: return TOKEN_UNDEFINED;

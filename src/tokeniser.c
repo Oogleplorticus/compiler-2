@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "token.h"
 
@@ -51,6 +52,42 @@ void skipTextLiteral(char literalType) {
 			escape = false;
 		}
 	}
+}
+
+enum TokenType skipNumberLiteral(char firstChar) {
+	//test for different base
+	bool based = false;
+	if (firstChar == '0') {
+		char nextChar = fgetc(srcPtr);
+		//no octal because octal is STUPID (maybe later)
+		if (nextChar == 'x' || nextChar == 'b') {
+			based = true;
+			//start after the x
+			firstChar = fgetc(srcPtr);
+		}
+	}
+
+	//do the skipping
+	bool decimal = false;
+	char c = firstChar;
+	while (isdigit(c) || c == '.') {
+		c = fgetc(srcPtr);
+		if (c == '.') {
+			decimal = true;
+		}
+	}
+
+	//smidge of error checking
+	if (decimal && based) {
+		fprintf(stderr, "ERROR: Number literal with base and decimal point at file index %zu\n", ftell(srcPtr));
+		exit(1);
+	}
+	
+	//return token type
+	if (decimal) {
+		return TOKEN_LITERAL_FLOAT;
+	}
+	return TOKEN_LITERAL_INT;
 }
 
 void skipIdentifier() {
@@ -105,7 +142,8 @@ struct Token getToken(size_t searchIndex) {
 
 	//check if number literal
 	if (isdigit(firstChar)) {
-		//TODO finish
+		token.type = skipNumberLiteral(firstChar);
+		token.length = ftell(srcPtr) - token.fileIndex;
 		return token;
 	}
 
@@ -122,10 +160,7 @@ struct Token getToken(size_t searchIndex) {
 
 void resetTokeniser(FILE* filePtr) {
 	srcPtr = filePtr;
-
-	//seek to start
-	fseek(srcPtr, 0, SEEK_SET);
-
+	
 	//cache initial tokens
 	*currentTokenPtr = getToken(0);
 	size_t searchIndex = currentTokenPtr->fileIndex + currentTokenPtr->length;
@@ -149,4 +184,11 @@ struct Token currentToken() {
 
 struct Token nextToken() {
 	return *nextTokenPtr;
+}
+
+void setTokeniserIndex(size_t index) {
+	//cache initial tokens
+	*currentTokenPtr = getToken(index);
+	index = currentTokenPtr->fileIndex + currentTokenPtr->length;
+	*nextTokenPtr = getToken(index);
 }
